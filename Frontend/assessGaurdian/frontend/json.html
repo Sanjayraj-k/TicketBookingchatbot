@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            text-align: center;
+        }
+        .container {
+            max-width: 600px;
+            margin: auto;
+        }
+        input, select, button {
+            display: block;
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+        }
+        .quiz-container {
+            margin-top: 20px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Upload Document to Generate Quiz</h2>
+        <input type="file" id="fileInput" accept="application/pdf">
+        <select id="difficulty">
+            <option value="easy">Easy</option>
+            <option value="medium" selected>Medium</option>
+            <option value="hard">Hard</option>
+        </select>
+        <input type="number" id="numQuestions" placeholder="Number of Questions" min="1" value="3">
+        <button type="button" onclick="submitForm()">Generate Quiz</button>
+        <div class="quiz-container" id="quizContainer"></div>
+    </div>
+    <script>
+        async function submitForm() {
+            const fileInput = document.getElementById('fileInput').files[0];
+            const difficulty = document.getElementById('difficulty').value;
+            const numQuestions = document.getElementById('numQuestions').value;
+            const formData = new FormData();
+            formData.append('file', fileInput);
+            formData.append('difficulty', difficulty);
+            formData.append('num_questions', numQuestions);
+            
+            console.log('Submitting form with data:', {
+                file: fileInput,
+                difficulty: difficulty,
+                numQuestions: numQuestions
+            });
+
+            await fetch('http://localhost:5000/api/generate-quiz', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                console.log('Response received:', response);
+                return response.json();
+            })
+            .then(data => {
+                console.log('Data received:', data);
+                displayQuiz(data);
+            })
+            .catch(error => console.error('Error:', error));
+        }
+        
+        function displayQuiz(data) {
+            const quizContainer = document.getElementById('quizContainer');
+            quizContainer.innerHTML = '<h3>Generated Quiz</h3>';
+            data.quiz.forEach((q, index) => {
+                let questionHTML = `<p><strong>Q${index + 1}: ${q.question}</strong></p>`;
+                q.options.forEach(option => {
+                    questionHTML += `<label><input type="radio" name="q${index}" value="${option}"> ${option}</label><br/>`;
+                });
+                quizContainer.innerHTML += questionHTML;
+            });
+            console.log('Quiz displayed successfully');
+        }
+    </script>
+</body>
+</html>
