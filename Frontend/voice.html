@@ -17,7 +17,7 @@
         }
         .chat-container {
             width: 400px;
-            height: 600px; /* Fixed height */
+            height: 600px; 
             background-color: #ffffff;
             border-radius: 20px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
@@ -111,12 +111,13 @@
 </head>
 <body>
     <div class="chat-container">
-        <div class="chat-header">Museo bot</div>
+        <div class="chat-header">Museo bot <img src="assistant.png" style="height: 30px; width: 30px; margin-left: 10px;"/>
+        </div>
         <div id="chat-history" class="chat-history">
-            <!-- Chat history will be dynamically added here -->
+            
         </div>
         <div class="chat-input">
-            <button class="voice-btn" onclick="startVoiceInput()" aria-label="Start voice input">🎤</button>
+            <img src="microphone.png" style="height: 30px; width: 30px; margin-left: 5px;" onclick="startVoiceInput()" aria-label="Start voice input/">
             <input type="text" id="user-input" placeholder="Type your message..." />
             <button class="send-btn" onclick="sendMessage()" aria-label="Send message">Send</button>
         </div>
@@ -130,16 +131,16 @@
 
             if (!message) return;
 
-            // Display user's message
+            
             const userMessage = document.createElement("div");
             userMessage.className = "message user";
-            userMessage.innerHTML = `<div class="bubble">${message}</div>`;
+            userMessage.innerHTML = `<div class="bubble"><img src="man.png" style="height: 30px; width: 30px; margin-left: 10px; margin-right:10px"/>${message}</div>`;
             chatHistory.appendChild(userMessage);
 
-            // Clear input
+            
             userInput.value = "";
 
-            // Scroll to the bottom
+       
             chatHistory.scrollTop = chatHistory.scrollHeight;
 
             try {
@@ -156,7 +157,8 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    botMessage.innerHTML = `<div class="bubble">${data.answer}</div>`;
+                    botMessage.innerHTML = `<div class="bubble"><img src="assistant.png" style="height: 30px; width: 30px; margin-left: 10px;"/>
+${data.answer}</div>`;
                 } else {
                     botMessage.innerHTML = `<div class="bubble"><strong>Error:</strong> Server responded with an error.</div>`;
                 }
