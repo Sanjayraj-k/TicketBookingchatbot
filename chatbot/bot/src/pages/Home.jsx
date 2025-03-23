@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
-import { Clock, MapPin, Phone, Calendar, Camera, History, Palette, Book, Ticket, Users, Building, Star } from 'lucide-react';
-import Chatbot from '../component/Chatbot'; // Import the Chatbot component
-import ChatbotIcon from '../component/ChatbotIcon'; // Import the new ChatbotIcon component
-import './Home.css'; // Import the CSS for the Home component
+import { Clock, MapPin, Phone, Calendar, Camera, History, Palette, Book, Ticket, Users, Building, Star, Map } from 'lucide-react';
+import Chatbot from '../../components/Chatbot';
+import ChatbotIcon from '../../components/ChatbotIcon';
+import './Home.css';
 
 function Home() {
-  const [isChatbotOpen, setIsChatbotOpen] = useState(false); // State to toggle chatbot visibility
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
   const toggleChatbot = () => {
-    setIsChatbotOpen(!isChatbotOpen); // Toggle the chatbot visibility
+    setIsChatbotOpen(!isChatbotOpen);
   };
 
   return (
@@ -180,6 +180,47 @@ function Home() {
                 alt="Contemporary Art Gallery"
                 className="featured-image"
               />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="container">
+        <div className="divider-line">
+          <div className="line">__________________________________________________</div>
+        </div>
+      </div>
+
+      <section className="section map-section">
+        <div className="container">
+          <h2 className="section-title">Find Us</h2>
+          <div className="map-content">
+            <div className="map-wrapper">
+              <iframe 
+                src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d248863.94577545254!2d80.08333192431085!3d12.939879761037457!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x3a52660ef39b8afb%3A0x9507fa7b131c1c36!2sGovernment%20Museum%20Chennai!5e0!3m2!1sen!2sin!4v1742731291832!5m2!1sen!2sin" 
+                width="100%" 
+                height="450" 
+                style={{ border: 0, borderRadius: '10px' }} 
+                allowFullScreen="" 
+                loading="lazy"
+                title="Government Museum Chennai Location"
+              ></iframe>
+            </div>
+            <div className="map-info">
+              <div className="map-info-card">
+                <div className="map-info-header">
+                  <MapPin className="map-info-icon" size={24} />
+                  <h3>How to Reach Us</h3>
+                </div>
+                <div className="map-info-content">
+                  <p><strong>Address:</strong> Government Museum Complex, Pantheon Road, Egmore, Chennai, Tamil Nadu 600008</p>
+                  <p><strong>By Metro:</strong> Egmore Metro Station (0.5 km)</p>
+                  <p><strong>By Train:</strong> Chennai Egmore Railway Station (0.7 km)</p>
+                  <p><strong>By Bus:</strong> Egmore Bus Stop (0.3 km)</p>
+                  <p><strong>Nearby Landmarks:</strong> Connemara Public Library, National Art Gallery</p>
+                  <button className="btn btn-primary">Get Directions</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
