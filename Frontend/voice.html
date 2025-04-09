@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistant</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .chat-container {
+            width: 400px;
+            height: 600px; 
+            background-color: #ffffff;
+            border-radius: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .chat-header {
+            background-color: #4caf50;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            border-top-left-radius: 20px;
+            border-top-right-radius: 20px;
+        }
+        .chat-history {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+            border-bottom: 1px solid #ddd;
+        }
+        .message {
+            margin: 10px 0;
+            display: flex;
+        }
+        .message.user {
+            justify-content: flex-end;
+        }
+        .message.bot {
+            justify-content: flex-start;
+        }
+        .message .bubble {
+            max-width: 75%;
+            padding: 12px;
+            border-radius: 15px;
+            font-size: 14px;
+            line-height: 1.4;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .message.user .bubble {
+            background-color: #4caf50;
+            color: white;
+            border-top-right-radius: 0;
+        }
+        .message.bot .bubble {
+            background-color: #e0e0e0;
+            color: #333;
+            border-top-left-radius: 0;
+        }
+        .chat-input {
+            display: flex;
+            padding: 10px 15px;
+            background-color: #ffffff;
+        }
+        .chat-input input {
+            flex: 1;
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            outline: none;
+            margin-right: 10px;
+        }
+        .chat-input button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .voice-btn {
+            background-color: #ff5722;
+            color: white;
+            margin-right: 10px;
+        }
+        .voice-btn:hover {
+            background-color: #e64a19;
+        }
+        .send-btn {
+            background-color: #4caf50;
+            color: white;
+        }
+        .send-btn:hover {
+            background-color: #388e3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">Museo bot <img src="assistant.png" style="height: 30px; width: 30px; margin-left: 10px;"/>
+        </div>
+        <div id="chat-history" class="chat-history">
+            
+        </div>
+        <div class="chat-input">
+            <img src="microphone.png" style="height: 30px; width: 30px; margin-left: 5px;" onclick="startVoiceInput()" aria-label="Start voice input/">
+            <input type="text" id="user-input" placeholder="Type your message..." />
+            <button class="send-btn" onclick="sendMessage()" aria-label="Send message">Send</button>
+        </div>
+    </div>
+
+    <script>
+        async function sendMessage(){
+            const userInput = document.getElementById("user-input");
+            const chatHistory = document.getElementById("chat-history");
+            const message = userInput.value.trim();
+
+            if (!message) return;
+
+            
+            const userMessage = document.createElement("div");
+            userMessage.className = "message user";
+            userMessage.innerHTML = `<div class="bubble"><img src="man.png" style="height: 30px; width: 30px; margin-left: 10px; margin-right:10px"/>${message}</div>`;
+            chatHistory.appendChild(userMessage);
+
+            
+            userInput.value = "";
+
+       
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+
+            try {
+                const response = await fetch("http://127.0.0.1:5000/ask", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ question: message })
+                });
+
+                const botMessage = document.createElement("div");
+                botMessage.className = "message bot";
+
+                if (response.ok) {
+                    const data = await response.json();
+                    botMessage.innerHTML = `<div class="bubble"><img src="assistant.png" style="height: 30px; width: 30px; margin-left: 10px;"/>
+${data.answer}</div>`;
+                } else {
+                    botMessage.innerHTML = `<div class="bubble"><strong>Error:</strong> Server responded with an error.</div>`;
+                }
+                chatHistory.appendChild(botMessage);
+
+            } catch (error) {
+                const botMessage = document.createElement("div");
+                botMessage.className = "message bot";
+                botMessage.innerHTML = `<div class="bubble"><strong>Error:</strong> Unable to connect to the server.</div>`;
+                chatHistory.appendChild(botMessage);
+            }
+
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+        function startVoiceInput() {
+            if (!("SpeechRecognition" in window || "webkitSpeechRecognition" in window)) {
+                alert("Sorry, your browser does not support speech recognition.");
+                return;
+            }
+
+            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = "en-US";
+            recognition.interimResults = false;
+
+            recognition.onresult = function (event) {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById("user-input").value = transcript;
+            };
+            recognition.onerror = function (event) {
+                alert("Voice recognition error: " + event.error);
+            };
+
+            recognition.onspeechend = function () {
+                
+                recognition.stop();
+            };
+
+            recognition.start();
+        }
+    </script>
+</body>
+</html>

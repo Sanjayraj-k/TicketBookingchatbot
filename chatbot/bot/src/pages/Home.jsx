@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Clock, MapPin, Phone, Calendar, Camera, History, Palette, Book, Ticket, Users, Building, Star, Map } from 'lucide-react';
-import Chatbot from '../../components/Chatbot';
-import ChatbotIcon from '../../components/ChatbotIcon';
-import './Home.css';
+import { Clock, MapPin, Phone, Calendar, Camera, History, Palette, Book, Ticket, Users, Building, Star } from 'lucide-react';
+import Chatbot from '../component/Chatbot'; // Import the Chatbot component
+import ChatbotIcon from '../component/ChatbotIcon'; // Import the new ChatbotIcon component
+import './Home.css'; // Import the CSS for the Home component
 
 function Home() {
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Ticket Checking</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f4f4f9;
+        }
+
+        .admin-container {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .admin-container h2 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        .admin-container input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        .validate-button {
+            width: 100%;
+            padding: 10px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .validate-button:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <h2>Admin Ticket Validation</h2>
+        <input type="text" id="adminTicketId" placeholder="Enter Ticket ID">
+        <input type="email" id="adminEmail" placeholder="Enter Email">
+        <button class="validate-button" onclick="checkTicket()">Validate Ticket</button>
+    </div>
+
+    <script>
+        async function checkTicket() {
+            const ticketId = document.getElementById('adminTicketId').value;
+            const email = document.getElementById('adminEmail').value;
+
+            if (!ticketId || !email) {
+                alert("Please provide both Ticket ID and Email.");
+                return;
+            }
+
+            try {
+                const response = await fetch('/validate-ticket', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ticketId, email })
+                });
+
+                const result = await response.json();
+
+                if (result.status === 'valid') {
+                    alert("Ticket is valid!");
+                } else if (result.status === 'used') {
+                    alert("Ticket has already been used.");
+                } else {
+                    alert("Invalid ticket details.");
+                }
+            } catch (error) {
+                alert("An error occurred while validating the ticket. Please try again.");
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>
