@@ -1,0 +1,15 @@
+flask
+flask-cors
+flask-mail
+requests
+razorpay
+pymongo
+chromadb
+langchain
+huggingface-hub
+sentence-transformers
+langchain-community
+langchain-core
+groq
+openrouteservice
+python-dotenv
