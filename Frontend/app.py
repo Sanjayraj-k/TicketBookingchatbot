@@ -22,7 +22,7 @@ import re
 # 🔥 Flask App Initialization
 app = Flask(__name__)
 app.secret_key = "super_secret_key"  # For session management
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})  # Updated for specific origin
 
 # 🔥 Logging Configuration
 logging.basicConfig(level=logging.INFO)
@@ -41,7 +41,7 @@ EMAIL_USERNAME = "ksanjayias@gmail.com"
 EMAIL_PASSWORD = "hppd qdzf msvj hwlk"
 
 # 🔹 MongoDB Configuration
-MONGO_URI = "mongodb://localhost:27017/"  # Replace with your MongoDB URI
+MONGO_URI = "mongodb+srv://sanjay:sanjayraj156@cluster0.65swz.mongodb.net/"  # Replace with your MongoDB URI
 mongo_client = MongoClient(MONGO_URI)
 db = mongo_client["museum_db"]
 bookings_collection = db["bookings"]
@@ -53,6 +53,7 @@ client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_SECRET))
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
 vector_store = None
 persist_dir = "./chroma_db"
+llm = ChatGroq(model="llama3-8b-8192")
 
 # 🔹 Museum Coordinates
 MUSEUM_COORDINATES = {"lon": 80.2574, "lat": 13.0674}
@@ -84,11 +85,14 @@ def initialize_vector_store(text_folder: str):
     if vector_store is None:
         vector_store = Chroma(embedding_function=embeddings, persist_directory=persist_dir)
         if not os.path.exists(persist_dir):
+            if not os.path.exists(text_folder):
+                logging.error(f"Text folder {text_folder} does not exist")
+                return
             docs = load_texts(text_folder)
             logging.info(f"Loaded {len(docs)} documents from {text_folder}.")
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
             all_splits = text_splitter.split_documents(docs)
-            batch_size = 50
+            batch_size = 10  # Reduced batch size for lower memory usage
             for i in range(0, len(all_splits), batch_size):
                 batch = all_splits[i:i + batch_size]
                 vector_store.add_documents(documents=batch)
@@ -177,15 +181,22 @@ def home():
 # 🔹 Route: Ask
 @app.route('/ask', methods=['POST'])
 def ask():
+    logging.info("Received /ask POST request")
     try:
         data = request.get_json()
+        logging.info("Parsed request JSON")
         if not data or "question" not in data:
             return jsonify({"error": "Invalid request. Missing 'question' parameter."}), 400
 
         question = data["question"].strip().lower()
         session_id = request.remote_addr
+        logging.info(f"Question: {question}, Session ID: {session_id}")
 
-        initialize_vector_store("../pa")  # Initialize vector store on first request
+        text_folder = os.path.join(os.path.dirname(__file__), "..", "pa")
+        logging.info(f"Text folder path: {text_folder}")
+        logging.info("Initializing vector store")
+        initialize_vector_store(text_folder)
+        logging.info("Vector store initialized")
 
         # Handle distance query (e.g., "I am in Erode distance far?")
         distance_match = re.search(r"i am (?:in )?(.+?) distance", question)
@@ -255,7 +266,9 @@ def ask():
                 })
 
         # RAG Response
+        logging.info("Invoking RAG pipeline")
         response = graph.invoke({"question": question})
+        logging.info("RAG pipeline completed")
         return jsonify({"answer": response["answer"]})
 
     except Exception as e:
