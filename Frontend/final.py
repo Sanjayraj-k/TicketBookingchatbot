@@ -41,7 +41,7 @@ EMAIL_USERNAME = "ksanjayias@gmail.com"
 EMAIL_PASSWORD = "hppd qdzf msvj hwlk"
 
 # 🔹 MongoDB Configuration
-MONGO_URI = "mongodb://localhost:27017/"  # Replace with your MongoDB URI
+MONGO_URI = "mongodb+srv://sanjay:sanjayraj156@cluster0.65swz.mongodb.net/"  # Replace with your MongoDB URI
 mongo_client = MongoClient(MONGO_URI)
 db = mongo_client["museum_db"]
 bookings_collection = db["bookings"]
@@ -77,7 +77,7 @@ def load_texts(text_folder: str):
             documents.append(Document(page_content=text, metadata={"source": filename}))
     return documents
 
-text_folder = "D:/llm1/pa"
+text_folder = "../pa"
 docs = load_texts(text_folder)
 logging.info(f"Loaded {len(docs)} documents from {text_folder}.")
 
