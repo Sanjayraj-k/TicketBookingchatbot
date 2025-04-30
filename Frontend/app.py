@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from langchain_groq import ChatGroq
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -41,10 +40,25 @@ EMAIL_USERNAME = "ksanjayias@gmail.com"
 EMAIL_PASSWORD = "hppd qdzf msvj hwlk"
 
 # 🔹 MongoDB Configuration
-MONGO_URI = "mongodb+srv://sanjay:sanjayraj156@cluster0.65swz.mongodb.net/"  # Replace with your MongoDB URI
-mongo_client = MongoClient(MONGO_URI)
-db = mongo_client["museum_db"]
-bookings_collection = db["bookings"]
+MONGO_URI = "mongodb+srv://sanjay:sanjayraj156@cluster0.65swz.mongodb.net/"
+mongo_client = None
+db = None
+bookings_collection = None
+
+# Initialize MongoDB connection only if needed
+def initialize_mongo():
+    global mongo_client, db, bookings_collection
+    if mongo_client is None:
+        try:
+            mongo_client = MongoClient(MONGO_URI)
+            db = mongo_client["museum_db"]
+            bookings_collection = db["bookings"]
+            logging.info("MongoDB connection initialized successfully")
+        except Exception as e:
+            logging.error(f"Failed to connect to MongoDB: {str(e)}")
+            mongo_client = None
+            db = None
+            bookings_collection = None
 
 # 🔹 Razorpay Client
 client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_SECRET))
@@ -83,7 +97,8 @@ def load_texts(text_folder: str):
 def initialize_vector_store(text_folder: str):
     global vector_store, embeddings
     if vector_store is None:
-        # Initialize embeddings lazily
+        # Lazy import and initialization of HuggingFaceEmbeddings
+        from langchain_huggingface import HuggingFaceEmbeddings
         if embeddings is None:
             logging.info("Loading embedding model: sentence-transformers/all-MiniLM-L6-v2")
             embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
@@ -190,12 +205,12 @@ def ask():
     logging.info("Received /ask POST request")
     try:
         data = request.get_json()
-        logging.info("Parsed request JSON")
+        logging.info("Parsed request JSON: %s", data)
         if not data or "question" not in data:
             return jsonify({"error": "Invalid request. Missing 'question' parameter."}), 400
 
         question = data["question"].strip().lower()
-        session_id = request.remote_addr
+        session_id = request.headers.get("X-Session-ID", request.remote_addr)
         logging.info(f"Question: {question}, Session ID: {session_id}")
 
         text_folder = os.path.join(os.path.dirname(__file__), "..", "pa")
@@ -204,7 +219,7 @@ def ask():
         initialize_vector_store(text_folder)
         logging.info("Vector store initialized")
 
-        # Handle distance query (e.g., "I am in Erode distance far?")
+        # Handle distance query (e.g., "I am in Erode distance")
         distance_match = re.search(r"i am (?:in )?(.+?) distance", question)
         if distance_match:
             location = distance_match.group(1).strip()
@@ -284,6 +299,7 @@ def ask():
 # 🔹 Payment Callback Endpoint
 @app.route('/payment-callback', methods=['GET', 'POST'])
 def payment_callback():
+    initialize_mongo()  # Initialize MongoDB for this request
     try:
         payment_id = request.args.get('razorpay_payment_link_id')
         payment_status = request.args.get('razorpay_payment_link_status')
@@ -300,19 +316,20 @@ def payment_callback():
                 payment_id
             )
             
-            # Store booking details in MongoDB
-            booking_data = {
-                "payment_id": payment_id,
-                "name": booking["name"],
-                "email": booking["email"],
-                "tickets": int(booking["tickets"]),
-                "date": booking["date"],
-                "amount": booking["amount"],
-                "status": "completed",
-                "payment_date": "2025-03-22"  # Replace with actual timestamp if needed
-            }
-            bookings_collection.insert_one(booking_data)
-            logging.info(f"Booking stored in MongoDB for {booking['email']}")
+            # Store booking details in MongoDB if connected
+            if bookings_collection is not None:
+                booking_data = {
+                    "payment_id": payment_id,
+                    "name": booking["name"],
+                    "email": booking["email"],
+                    "tickets": int(booking["tickets"]),
+                    "date": booking["date"],
+                    "amount": booking["amount"],
+                    "status": "completed",
+                    "payment_date": "2025-03-22"  # Replace with actual timestamp if needed
+                }
+                bookings_collection.insert_one(booking_data)
+                logging.info(f"Booking stored in MongoDB for {booking['email']}")
             
             # Update payment status
             pending_payments[payment_id]["status"] = "completed"
