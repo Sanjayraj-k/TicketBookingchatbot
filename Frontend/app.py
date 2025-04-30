@@ -41,7 +41,7 @@ EMAIL_USERNAME = "ksanjayias@gmail.com"
 EMAIL_PASSWORD = "hppd qdzf msvj hwlk"
 
 # 🔹 MongoDB Configuration
-MONGO_URI = "mongodb+srv://sanjay:sanjayraj156@cluster0.65swz.mongodb.net/"  # Replace with your MongoDB URI
+MONGO_URI = "mongodb://localhost:27017/"  # Replace with your MongoDB URI
 mongo_client = MongoClient(MONGO_URI)
 db = mongo_client["museum_db"]
 bookings_collection = db["bookings"]
@@ -50,9 +50,9 @@ bookings_collection = db["bookings"]
 client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_SECRET))
 
 # 🔹 Language Models
-llm = ChatGroq(model="llama3-8b-8192")
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
-vector_store = Chroma(embedding_function=embeddings)
+embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+vector_store = None
+persist_dir = "./chroma_db"
 
 # 🔹 Museum Coordinates
 MUSEUM_COORDINATES = {"lon": 80.2574, "lat": 13.0674}
@@ -70,23 +70,30 @@ def load_texts(text_folder: str):
         if filename.endswith(".txt"):
             with open(file_path, "r", encoding="utf-8") as file:
                 text = file.read()
+                logging.info(f"Loaded {filename}, size: {len(text)} characters")
                 documents.append(Document(page_content=text, metadata={"source": filename}))
         elif filename.endswith(".pdf"):
             pdf_reader = PdfReader(file_path)
             text = "".join(page.extract_text() for page in pdf_reader.pages if page.extract_text())
+            logging.info(f"Loaded {filename}, size: {len(text)} characters")
             documents.append(Document(page_content=text, metadata={"source": filename}))
     return documents
 
-text_folder = "../pa"
-docs = load_texts(text_folder)
-logging.info(f"Loaded {len(docs)} documents from {text_folder}.")
-
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-all_splits = text_splitter.split_documents(docs)
-vector_store.add_documents(documents=all_splits)
-logging.info("Document chunks added to vector store successfully.")
-
-prompt = hub.pull("rlm/rag-prompt")
+def initialize_vector_store(text_folder: str):
+    global vector_store
+    if vector_store is None:
+        vector_store = Chroma(embedding_function=embeddings, persist_directory=persist_dir)
+        if not os.path.exists(persist_dir):
+            docs = load_texts(text_folder)
+            logging.info(f"Loaded {len(docs)} documents from {text_folder}.")
+            text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+            all_splits = text_splitter.split_documents(docs)
+            batch_size = 50
+            for i in range(0, len(all_splits), batch_size):
+                batch = all_splits[i:i + batch_size]
+                vector_store.add_documents(documents=batch)
+                logging.info(f"Added batch {i // batch_size + 1} to vector store.")
+            logging.info("Document chunks added to vector store successfully.")
 
 # 🔹 Define State for RAG Model
 class State(Dict):
@@ -101,7 +108,7 @@ def retrieve(state: State):
 
 def generate(state: State):
     docs_content = "\n\n".join(doc.page_content for doc in state["context"])
-    messages = prompt.invoke({"question": state["question"], "context": docs_content})
+    messages = hub.pull("rlm/rag-prompt")
     response = llm.invoke(messages)
     return {"answer": response.content}
 
@@ -177,6 +184,8 @@ def ask():
 
         question = data["question"].strip().lower()
         session_id = request.remote_addr
+
+        initialize_vector_store("../pa")  # Initialize vector store on first request
 
         # Handle distance query (e.g., "I am in Erode distance far?")
         distance_match = re.search(r"i am (?:in )?(.+?) distance", question)
