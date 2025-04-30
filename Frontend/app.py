@@ -22,7 +22,7 @@ import re
 # 🔥 Flask App Initialization
 app = Flask(__name__)
 app.secret_key = "super_secret_key"  # For session management
-CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})  # Updated for specific origin
+CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
 
 # 🔥 Logging Configuration
 logging.basicConfig(level=logging.INFO)
@@ -50,7 +50,7 @@ bookings_collection = db["bookings"]
 client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_SECRET))
 
 # 🔹 Language Models
-embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+embeddings = None  # Initialize embeddings lazily
 vector_store = None
 persist_dir = "./chroma_db"
 llm = ChatGroq(model="llama3-8b-8192")
@@ -81,8 +81,14 @@ def load_texts(text_folder: str):
     return documents
 
 def initialize_vector_store(text_folder: str):
-    global vector_store
+    global vector_store, embeddings
     if vector_store is None:
+        # Initialize embeddings lazily
+        if embeddings is None:
+            logging.info("Loading embedding model: sentence-transformers/all-MiniLM-L6-v2")
+            embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+            logging.info("Embedding model loaded successfully")
+        
         vector_store = Chroma(embedding_function=embeddings, persist_directory=persist_dir)
         if not os.path.exists(persist_dir):
             if not os.path.exists(text_folder):
@@ -92,7 +98,7 @@ def initialize_vector_store(text_folder: str):
             logging.info(f"Loaded {len(docs)} documents from {text_folder}.")
             text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
             all_splits = text_splitter.split_documents(docs)
-            batch_size = 10  # Reduced batch size for lower memory usage
+            batch_size = 10
             for i in range(0, len(all_splits), batch_size):
                 batch = all_splits[i:i + batch_size]
                 vector_store.add_documents(documents=batch)
