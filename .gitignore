@@ -1,5 +1,5 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 .venv/
-__chatbot/bot/node_modules/
+chatbot/bot/node_modules/
 Frontend

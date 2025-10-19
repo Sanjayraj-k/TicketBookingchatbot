@@ -2,11 +2,11 @@ from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from langchain_groq import ChatGroq
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain import hub
 from langgraph.graph import START, StateGraph
+from pinecone import Pinecone, ServerlessSpec
 from typing import List, Dict
 import os
 import logging
@@ -18,18 +18,22 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pymongo import MongoClient
 import re
+import uuid
 
 # 🔥 Flask App Initialization
 app = Flask(__name__)
-app.secret_key = "super_secret_key"  # For session management
+app.secret_key = str(uuid.uuid4())  # Secure random secret key for session management
 CORS(app, resources={r"/*": {"origins": "*"}})
 
 # 🔥 Logging Configuration
 logging.basicConfig(level=logging.INFO)
 
 # 🔹 API Keys (Replace with your keys)
-os.environ["LANGCHAIN_API_KEY"] = "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"
-os.environ["GROQ_API_KEY"] = "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"
+os.environ["LANGCHAIN_API_KEY"] = "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"  # Add your LangChain API key
+os.environ["GROQ_API_KEY"] = "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"
+PINECONE_API_KEY = "pcsk_2wjHhQ_ESQ6gNEBqgtpVHVwZYNoZNrtVpeBqw1Q5JrNtz6izYYUc6VwGVjUoytfFzr3H98"  # Replace with your Pinecone API key
+PINECONE_INDEX_NAME = "museum-embeddings"
+PINECONE_ENVIRONMENT = "us-west1-gcp"  # Replace with your Pinecone environment
 ORS_API_KEY = "5b3ce3597851110001cf6248c1cce33a2c1f487bbb59575f02854d69"
 RAZORPAY_KEY_ID = "rzp_test_1Ss2OE5DsbSMr0"
 RAZORPAY_SECRET = "PSwn48wSWKAD0HwJptCOXoUt"
@@ -50,9 +54,12 @@ bookings_collection = db["bookings"]
 client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_SECRET))
 
 # 🔹 Language Models
-llm = ChatGroq(model="llama3-8b-8192")
+llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct")
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
-vector_store = Chroma(embedding_function=embeddings)
+
+# 🔹 Initialize Pinecone
+pc = Pinecone(api_key=PINECONE_API_KEY)
+index = pc.Index(PINECONE_INDEX_NAME)
 
 # 🔹 Museum Coordinates
 MUSEUM_COORDINATES = {"lon": 80.2574, "lat": 13.0674}
@@ -62,8 +69,8 @@ user_sessions = {}
 # 🔥 Payment Storage (to track pending payments)
 pending_payments = {}
 
-# 🔹 Load Documents into Vector Store
-def load_texts(text_folder: str):
+# 🔹 Load Documents into Pinecone
+def load_texts_to_pinecone(text_folder: str):
     documents = []
     for filename in os.listdir(text_folder):
         file_path = os.path.join(text_folder, filename)
@@ -75,18 +82,27 @@ def load_texts(text_folder: str):
             pdf_reader = PdfReader(file_path)
             text = "".join(page.extract_text() for page in pdf_reader.pages if page.extract_text())
             documents.append(Document(page_content=text, metadata={"source": filename}))
-    return documents
 
-text_folder = "D:/llm1/pa"
-docs = load_texts(text_folder)
-logging.info(f"Loaded {len(docs)} documents from {text_folder}.")
+    # Split documents
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    all_splits = text_splitter.split_documents(documents)
+    logging.info(f"Split {len(all_splits)} document chunks.")
 
-text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-all_splits = text_splitter.split_documents(docs)
-vector_store.add_documents(documents=all_splits)
-logging.info("Document chunks added to vector store successfully.")
+    # Generate embeddings and upload to Pinecone
+    for i, doc in enumerate(all_splits):
+        embedding = embeddings.embed_query(doc.page_content)
+        index.upsert(
+            vectors=[{
+                "id": f"doc_{i}_{str(uuid.uuid4())}",
+                "values": embedding,
+                "metadata": {"text": doc.page_content, "source": doc.metadata["source"]}
+            }]
+        )
+    logging.info("Document embeddings uploaded to Pinecone successfully.")
 
-prompt = hub.pull("rlm/rag-prompt")
+# Load documents during app initialization
+text_folder = "D:/llm1/pa"  # Update path for Render deployment
+load_texts_to_pinecone(text_folder)
 
 # 🔹 Define State for RAG Model
 class State(Dict):
@@ -96,18 +112,34 @@ class State(Dict):
 
 # 🔹 RAG Pipeline
 def retrieve(state: State):
-    retrieved_docs = vector_store.similarity_search(state["question"])
+    question_embedding = embeddings.embed_query(state["question"])
+    query_response = index.query(
+        vector=question_embedding,
+        top_k=4,
+        include_metadata=True
+    )
+    retrieved_docs = [
+        Document(
+            page_content=match["metadata"]["text"],
+            metadata={"source": match["metadata"]["source"]}
+        )
+        for match in query_response["matches"]
+    ]
     return {"context": retrieved_docs}
 
 def generate(state: State):
     docs_content = "\n\n".join(doc.page_content for doc in state["context"])
+    prompt = hub.pull("rlm/rag-prompt")
     messages = prompt.invoke({"question": state["question"], "context": docs_content})
     response = llm.invoke(messages)
     return {"answer": response.content}
 
 # 🔥 Graph Flow
-graph_builder = StateGraph(State).add_sequence([retrieve, generate])
+graph_builder = StateGraph(State)
+graph_builder.add_node("retrieve", retrieve)
+graph_builder.add_node("generate", generate)
 graph_builder.add_edge(START, "retrieve")
+graph_builder.add_edge("retrieve", "generate")
 graph = graph_builder.compile()
 
 # 🔹 Email Sending Function
@@ -143,7 +175,7 @@ def geocode_location(location, api_key):
     if response.status_code == 200:
         data = response.json()
         if data['features']:
-            coordinates = data['features'][0]['geometry']['coordinates']  # [lon, lat]
+            coordinates = data['features'][0]['geometry']['coordinates']
             return coordinates
     return None
 
@@ -158,7 +190,7 @@ def calculate_distance(start_lon, start_lat, end_lon, end_lat, api_key):
     response = requests.post(url, json=body, headers=headers)
     if response.status_code == 200:
         data = response.json()
-        distance = data['routes'][0]['summary']['distance']  # Distance in kilometers
+        distance = data['routes'][0]['summary']['distance']
         return distance
     return None
 
@@ -178,7 +210,7 @@ def ask():
         question = data["question"].strip().lower()
         session_id = request.remote_addr
 
-        # Handle distance query (e.g., "I am in Erode distance far?")
+        # Handle distance query
         distance_match = re.search(r"i am (?:in )?(.+?) distance", question)
         if distance_match:
             location = distance_match.group(1).strip()
@@ -208,7 +240,13 @@ def ask():
                 if len(details) != 4:
                     return jsonify({"answer": "Invalid format. Provide: Name, Email, Tickets, Date (YYYY-MM-DD)."})
                 name, email, tickets, date = map(str.strip, details)
-                amount = int(tickets) * 5000
+                try:
+                    tickets = int(tickets)
+                    if tickets <= 0:
+                        raise ValueError
+                except ValueError:
+                    return jsonify({"answer": "Invalid number of tickets. Please provide a valid number."})
+                amount = tickets * 5000
                 session.update({
                     "name": name, "email": email, "tickets": tickets, "date": date, "amount": amount, "step": "confirm"
                 })
@@ -216,14 +254,14 @@ def ask():
 
             elif session.get("step") == "confirm" and question == "yes":
                 payment_link = client.payment_link.create({
-                    "amount": session["amount"],
+                    "amount": session["amount"] * 100,  # Razorpay expects amount in paise
                     "currency": "INR",
                     "accept_partial": False,
                     "description": "Museum Ticket Booking",
                     "customer": {
                         "name": session["name"],
                         "email": session["email"],
-                        "contact": "+91XXXXXXXXXX"
+                        "contact": "+91XXXXXXXXXX"  # Replace with dynamic contact if available
                     },
                     "notify": {"sms": True, "email": True},
                     "reminder_enable": True,
@@ -281,7 +319,7 @@ def payment_callback():
                 "date": booking["date"],
                 "amount": booking["amount"],
                 "status": "completed",
-                "payment_date": "2025-03-22"  # Replace with actual timestamp if needed
+                "payment_date": "2025-06-19"  # Use current date or dynamic timestamp
             }
             bookings_collection.insert_one(booking_data)
             logging.info(f"Booking stored in MongoDB for {booking['email']}")
@@ -318,4 +356,4 @@ def payment_callback():
 
 # 🔥 Run Flask App
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5000)

@@ -30,7 +30,7 @@ logging.basicConfig(level=logging.INFO)
 
 # 🔹 API Keys (Replace with your keys)
 os.environ["LANGCHAIN_API_KEY"] = "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"
-os.environ["GROQ_API_KEY"] = "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"
+os.environ["GROQ_API_KEY"] = "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"
 ORS_API_KEY = "5b3ce3597851110001cf6248c1cce33a2c1f487bbb59575f02854d69"
 RAZORPAY_KEY_ID = "rzp_test_1Ss2OE5DsbSMr0"
 RAZORPAY_SECRET = "PSwn48wSWKAD0HwJptCOXoUt"
@@ -51,7 +51,7 @@ bookings_collection = db["bookings"]
 client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_SECRET))
 
 # 🔹 Language Models
-llm = ChatGroq(model="llama3-8b-8192")
+llm = ChatGroq(model="meta-llama/llama-4-scout-17b-16e-instruct")
 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
 vector_store = Chroma(embedding_function=embeddings)
 
